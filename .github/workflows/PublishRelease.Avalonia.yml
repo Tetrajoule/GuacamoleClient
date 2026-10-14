@@ -1,4 +1,4 @@
-name: PublishRelease - Avalonia
+﻿name: PublishRelease - Avalonia
 
 # PLEASE NOTE: PUBLISHING/DEPLOYMENT
 #   * Release is to be created manually at GitHub releases management page
@@ -15,6 +15,7 @@ permissions:
   contents: write # nötig fürs Anhängen von Assets an ein Release
 
 env:
+  PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
   BUILD_CONFIGURATION: Release
 
 jobs:
@@ -194,7 +195,7 @@ jobs:
             deploymentType = "zip"
             channel = $env:CHANNEL
             version = $env:VERSION
-            updatesUrl = "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            updatesUrl = "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           $out = Join-Path $env:GITHUB_WORKSPACE "GuacamoleClient-Avalonia\bin\${{ env.BUILD_CONFIGURATION }}\net8.0"
           $appInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $out "app-info.json") -Encoding utf8
@@ -246,7 +247,7 @@ jobs:
               deploymentType = "zip"
               channel = $env:CHANNEL
               version = $env:VERSION
-              updatesUrl = "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+              updatesUrl = "${{ env.PAGES_BASE_URL }}/app-updates.json"
             }
             $out = Join-Path $env:GITHUB_WORKSPACE "GuacamoleClient-Avalonia/bin/${{ env.BUILD_CONFIGURATION }}/net8.0/$rid/publish"
             $appInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $out "app-info.json") -Encoding utf8
@@ -275,7 +276,7 @@ jobs:
             deploymentType = "zip"
             channel = "dev"
             version = $env:VERSION
-            updatesUrl = "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            updatesUrl = "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           $appInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $devRoot "app-info.json") -Encoding utf8
           Compress-Archive -Path (Join-Path $devRoot "*") -DestinationPath (Join-Path $env:GITHUB_WORKSPACE "bin-avalonia-windows-dev-${{ env.VERSION }}.zip") -Force
@@ -304,7 +305,7 @@ jobs:
             "deploymentType": "zip",
             "channel": "dev",
             "version": "${VERSION}",
-            "updatesUrl": "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            "updatesUrl": "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           EOF
           (cd "$dev_root" && zip "$GITHUB_WORKSPACE/bin-avalonia-linux-dev-${VERSION}.zip" -r .)
@@ -328,7 +329,7 @@ jobs:
             "deploymentType": "linux-tarball-direct",
             "channel": "${CHANNEL}",
             "version": "${VERSION}",
-            "updatesUrl": "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            "updatesUrl": "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           EOF
 
@@ -362,7 +363,7 @@ jobs:
             "deploymentType": "linux-tarball-direct",
             "channel": "dev",
             "version": "${VERSION}",
-            "updatesUrl": "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            "updatesUrl": "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           EOF
 
@@ -403,7 +404,7 @@ jobs:
             "deploymentType": "linux-rpm-direct",
             "channel": "${CHANNEL}",
             "version": "${VERSION}",
-            "updatesUrl": "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            "updatesUrl": "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           EOF
 
@@ -438,7 +439,7 @@ jobs:
           Release:        ${package_release}%{?dist}
           Summary:        Desktop client for Apache Guacamole
           License:        Apache-2.0
-          URL:            https://github.com/jochenwezel/GuacamoleClient
+          URL:            ${{ github.server_url }}/${{ github.repository }}
           BuildArch:      x86_64
           Requires:       glibc, cups-libs, alsa-lib, at-spi2-atk, atk, libdrm, fontconfig, mesa-libgbm, libgcc, mesa-libGL, gtk3, nss, libstdc++, libX11-xcb, libxcb, libXcomposite, libXcursor, libXdamage, libXi, libxkbcommon, libXrandr, libXrender, libXScrnSaver, libXtst, zlib
           %global debug_package %{nil}
@@ -487,7 +488,7 @@ jobs:
             "deploymentType": "linux-deb-direct",
             "channel": "${CHANNEL}",
             "version": "${VERSION}",
-            "updatesUrl": "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            "updatesUrl": "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           EOF
 
@@ -525,7 +526,7 @@ jobs:
           Maintainer: CompuMaster GmbH <info@compumaster.de>
           Installed-Size: $installed_size
           Depends: libc6, libcups2, libasound2 | libasound2t64, libatk-bridge2.0-0, libatk1.0-0, libdrm2, libfontconfig1, libgbm1, libgcc-s1, libgl1, libgtk-3-0, libnss3, libstdc++6, libx11-xcb1, libxcb1, libxcomposite1, libxcursor1, libxdamage1, libxi6, libxkbcommon0, libxrandr2, libxrender1, libxss1, libxtst6, zlib1g
-          Homepage: https://github.com/jochenwezel/GuacamoleClient
+          Homepage: ${{ github.server_url }}/${{ github.repository }}
           Description: Desktop client for Apache Guacamole
            GuacamoleClient runs Apache Guacamole sessions in a dedicated desktop application window.
           EOF
@@ -555,7 +556,7 @@ jobs:
             "deploymentType": "linux-deb-direct",
             "channel": "dev",
             "version": "${VERSION}",
-            "updatesUrl": "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            "updatesUrl": "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           EOF
 
@@ -593,7 +594,7 @@ jobs:
           Maintainer: CompuMaster GmbH <info@compumaster.de>
           Installed-Size: $installed_size
           Depends: libc6, libcups2, libasound2 | libasound2t64, libatk-bridge2.0-0, libatk1.0-0, libdrm2, libfontconfig1, libgbm1, libgcc-s1, libgl1, libgtk-3-0, libnss3, libstdc++6, libx11-xcb1, libxcb1, libxcomposite1, libxcursor1, libxdamage1, libxi6, libxkbcommon0, libxrandr2, libxrender1, libxss1, libxtst6, zlib1g
-          Homepage: https://github.com/jochenwezel/GuacamoleClient
+          Homepage: ${{ github.server_url }}/${{ github.repository }}
           Description: Desktop client for Apache Guacamole
            GuacamoleClient runs Apache Guacamole sessions in a dedicated desktop application window.
           EOF
@@ -626,7 +627,7 @@ jobs:
             "deploymentType": "linux-rpm-direct",
             "channel": "dev",
             "version": "${VERSION}",
-            "updatesUrl": "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            "updatesUrl": "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           EOF
 
@@ -661,7 +662,7 @@ jobs:
           Release:        ${package_release}%{?dist}
           Summary:        Desktop client for Apache Guacamole
           License:        Apache-2.0
-          URL:            https://github.com/jochenwezel/GuacamoleClient
+          URL:            ${{ github.server_url }}/${{ github.repository }}
           BuildArch:      x86_64
           Requires:       glibc, cups-libs, alsa-lib, at-spi2-atk, atk, libdrm, fontconfig, mesa-libgbm, libgcc, mesa-libGL, gtk3, nss, libstdc++, libX11-xcb, libxcb, libXcomposite, libXcursor, libXdamage, libXi, libxkbcommon, libXrandr, libXrender, libXScrnSaver, libXtst, zlib
           %global debug_package %{nil}
@@ -719,7 +720,7 @@ jobs:
             "deploymentType": "zip",
             "channel": "dev",
             "version": "${VERSION}",
-            "updatesUrl": "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            "updatesUrl": "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           EOF
             (cd "$dev_root" && zip "$GITHUB_WORKSPACE/bin-avalonia-${rid}-dev-${VERSION}.zip" -r .)

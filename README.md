@@ -2,10 +2,14 @@
 
 ![GuacamoleClient Logo](./logos/guac-client-app_banner_1280x640.png)
 
-[![Download Page](https://img.shields.io/badge/Downloads-Install%20%26%20Download%20Page-blue)](https://jochenwezel.github.io/GuacamoleClient/)
-[![All Downloads](https://img.shields.io/badge/Downloads-All%20Downloads-green)](https://github.com/jochenwezel/GuacamoleClient/releases)
+[![Download Page](https://img.shields.io/badge/Downloads-Install%20%26%20Download%20Page-blue)](https://tetrajoule.github.io/GuacamoleClient/)
+[![All Downloads](https://img.shields.io/badge/Downloads-All%20Downloads-green)](https://github.com/Tetrajoule/GuacamoleClient/releases)
 
-➡️ **Install and download page:** https://jochenwezel.github.io/GuacamoleClient/
+➡️ **Install and download page:** https://tetrajoule.github.io/GuacamoleClient/
+
+This fork is maintained at [Tetrajoule/GuacamoleClient](https://github.com/Tetrajoule/GuacamoleClient).
+The upstream project is [jochenwezel/GuacamoleClient](https://github.com/jochenwezel/GuacamoleClient).
+See [release notes](docs/release-notes/2026.10.14.0.md) for the current release and [release follow-ups](docs/RELEASE-TODOS.md) for outstanding work.
 
 ## What is GuacamoleClient?
 

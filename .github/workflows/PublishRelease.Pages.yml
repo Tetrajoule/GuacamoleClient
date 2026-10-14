@@ -1,4 +1,4 @@
-name: PublishRelease - GitHub Pages
+﻿name: PublishRelease - GitHub Pages
 
 on:
   release:
@@ -15,6 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
   CLICKONCE_APP_NAME: GuacamoleClient
   AVALONIA_CLICKONCE_APP_NAME: GuacamoleClient-Avalonia
 
@@ -178,7 +179,7 @@ jobs:
           $publicRoot = Join-Path $env:GITHUB_WORKSPACE "public"
           New-Item -ItemType Directory -Force -Path $publicRoot | Out-Null
 
-          $baseUrl = "https://jochenwezel.github.io/GuacamoleClient"
+          $baseUrl = "${{ env.PAGES_BASE_URL }}"
 
           function Save-PageFile([string]$RelativePath) {
             $normalizedRelativePath = $RelativePath -replace '\\', '/'
@@ -551,6 +552,12 @@ jobs:
           sed -i "s/__AVALONIA_DEB_VERSION__/${AVALONIA_DEB_VERSION}/g" "public/install-linux.md" "public/index.html"
           sed -i "s#__AVALONIA_DEB_RELEASE_TAG__#${AVALONIA_DEB_RELEASE_TAG}#g" "public/install-linux.md" "public/index.html"
 
+          # Render the inherited documentation templates for this repository.
+          sed -i \
+            -e "s#https://github.com/jochenwezel/GuacamoleClient#${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}#g" \
+            -e "s#https://jochenwezel.github.io/GuacamoleClient#${PAGES_BASE_URL}#g" \
+            public/INSTALL.md public/install-windows.md public/install-linux.md public/install-mac.md public/index.html public/app-updates.json
+
           {
             echo "# Release ${RELEASE_TAG#v}"
             echo
@@ -559,8 +566,8 @@ jobs:
               echo
             fi
             echo "## Installation (Stable)"
-            echo "- WinForms: https://jochenwezel.github.io/GuacamoleClient/clickonce/stable/GuacamoleClient.application"
-            echo "- Avalonia Windows: https://jochenwezel.github.io/GuacamoleClient/clickonce/avalonia/stable/GuacamoleClient-Avalonia.application"
+            echo "- WinForms: ${PAGES_BASE_URL}/clickonce/stable/GuacamoleClient.application"
+            echo "- Avalonia Windows: ${PAGES_BASE_URL}/clickonce/avalonia/stable/GuacamoleClient-Avalonia.application"
             echo
             echo "## Release Notes"
             echo

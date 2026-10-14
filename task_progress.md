@@ -53,6 +53,8 @@ Successful bidirectional clipboard transfer demonstrates that this session permi
 
 ## Remaining follow-up
 
+Release preparation: the clipboard fix is committed for stable fork release `2026.10.14.0`. Release notes are in `docs/release-notes/2026.10.14.0.md`; the consolidated clipboard, packaging, signing, and existing source follow-ups are in `docs/RELEASE-TODOS.md`.
+
 1. Exercise switching between multiple simultaneously connected sessions in the live WinForms UI. Automated tests already verify that a changed/replaced/disconnected client cannot receive a pending paste.
 2. Check sustained key-repeat and Ctrl+Shift+V in remote applications that support those gestures. Rapid separate Ctrl+V gestures passed live; the modified key ordering is covered by automated tests.
 3. If testing ordinary browser clipboard integration separately, use HTTPS or explicitly account for browser restrictions on this HTTP origin. The native WinForms clipboard path was verified on the supplied HTTP deployment.

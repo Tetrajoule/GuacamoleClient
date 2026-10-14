@@ -15,6 +15,7 @@ permissions:
   contents: write # nötig fürs Anhängen von Assets an ein Release
 
 env:
+  PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
   BUILD_CONFIGURATION: Release
   OUT_FRAMEWORK: artifacts/publish/winforms/framework/win-x64
   OUT_PORTABLE: artifacts/publish/winforms/portable/win-x64
@@ -118,7 +119,7 @@ jobs:
             deploymentType = "framework-dependent"
             channel = $env:CHANNEL
             version = $env:VERSION
-            updatesUrl = "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            updatesUrl = "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           $appInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $out "app-info.json") -Encoding utf8
 
@@ -146,7 +147,7 @@ jobs:
             deploymentType = "portable"
             channel = $env:CHANNEL
             version = $env:VERSION
-            updatesUrl = "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            updatesUrl = "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           $appInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $out "app-info.json") -Encoding utf8
 
@@ -173,7 +174,7 @@ jobs:
             deploymentType = "framework-dependent"
             channel = "dev"
             version = $env:VERSION
-            updatesUrl = "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            updatesUrl = "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           $appInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $devRoot "app-info.json") -Encoding utf8
           Compress-Archive -Path (Join-Path $devRoot "*") -DestinationPath (Join-Path $env:GITHUB_WORKSPACE "bin-winforms-framework-dev-${{ env.VERSION }}.zip") -Force
@@ -201,7 +202,7 @@ jobs:
             deploymentType = "portable"
             channel = "dev"
             version = $env:VERSION
-            updatesUrl = "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            updatesUrl = "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           $appInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $devRoot "app-info.json") -Encoding utf8
           Compress-Archive -Path (Join-Path $devRoot "*") -DestinationPath (Join-Path $env:GITHUB_WORKSPACE "bin-winforms-portable-dev-${{ env.VERSION }}.zip") -Force

@@ -18,6 +18,7 @@ permissions:
   contents: read
 
 env:
+  PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
   BUILD_CONFIGURATION: Release
   CLICKONCE_OUTDIR: artifacts/clickonce/anycpu
   CLICKONCE_DEV_OUTDIR: artifacts/clickonce-dev/anycpu
@@ -80,23 +81,23 @@ jobs:
         shell: bash
         run: |
           # Project Pages base URL for this repo:
-          # https://jochenwezel.github.io/GuacamoleClient/
+          # Use the current repository's GitHub Pages deployment.
           if [[ "${{ github.event_name }}" == "release" && "${{ github.event.release.prerelease }}" != "true" ]]; then
-            PROVIDER_URL="https://jochenwezel.github.io/GuacamoleClient/clickonce/stable/${{ env.CLICKONCE_APP_NAME }}.application"
+            PROVIDER_URL="${{ env.PAGES_BASE_URL }}/clickonce/stable/${{ env.CLICKONCE_APP_NAME }}.application"
             SUBDIR="clickonce/stable"
             CHANNEL="stable"
             MANIFEST_NAME="GuacamoleClient"
             PRERELEASE="false"
             PUBLISH_BOTH_CHANNELS="true"
           elif [[ "${{ github.event_name }}" == "release" && "${{ github.event.release.prerelease }}" == "true" ]]; then
-            PROVIDER_URL="https://jochenwezel.github.io/GuacamoleClient/clickonce/dev/${{ env.CLICKONCE_APP_NAME }}.application"
+            PROVIDER_URL="${{ env.PAGES_BASE_URL }}/clickonce/dev/${{ env.CLICKONCE_APP_NAME }}.application"
             SUBDIR="clickonce/dev"
             CHANNEL="dev"
             MANIFEST_NAME="GuacamoleClient Dev"
             PRERELEASE="true"
             PUBLISH_BOTH_CHANNELS="false"
           else
-            PROVIDER_URL="https://jochenwezel.github.io/GuacamoleClient/clickonce/test/${{ env.CLICKONCE_APP_NAME }}.application"
+            PROVIDER_URL="${{ env.PAGES_BASE_URL }}/clickonce/test/${{ env.CLICKONCE_APP_NAME }}.application"
             SUBDIR="clickonce/test"
             CHANNEL="test"
             MANIFEST_NAME="GuacamoleClient Test"
@@ -165,7 +166,7 @@ jobs:
             deploymentType = "clickonce"
             channel = $env:CLICKONCE_CHANNEL
             version = $env:VERSION
-            updatesUrl = "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            updatesUrl = "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           $appInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $appOut "app-info.json") -Encoding utf8
 
@@ -357,7 +358,7 @@ jobs:
           $deployManifest = Join-Path $devOut "${{ env.CLICKONCE_APP_NAME }}.application"
           $iconFile = Join-Path $appOut "guac.ico"
           $devIconFile = Join-Path $env:GITHUB_WORKSPACE "GuacamoleClient-WinForms\icons\guac-winforms-dev.ico"
-          $providerUrl = "https://jochenwezel.github.io/GuacamoleClient/clickonce/dev/${{ env.CLICKONCE_APP_NAME }}.application"
+          $providerUrl = "${{ env.PAGES_BASE_URL }}/clickonce/dev/${{ env.CLICKONCE_APP_NAME }}.application"
           $pfxPath = Join-Path $env:RUNNER_TEMP "clickonce-signing.pfx"
 
           if (-not (Test-Path $iconFile)) { throw "ClickOnce icon file not found: $iconFile" }
@@ -373,7 +374,7 @@ jobs:
             deploymentType = "clickonce"
             channel = "dev"
             version = $env:VERSION
-            updatesUrl = "https://jochenwezel.github.io/GuacamoleClient/app-updates.json"
+            updatesUrl = "${{ env.PAGES_BASE_URL }}/app-updates.json"
           }
           $appInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $appOut "app-info.json") -Encoding utf8
 

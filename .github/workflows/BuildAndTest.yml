@@ -19,12 +19,17 @@ on:
     # Allows you to run this workflow manually from the Actions tab
     workflow_dispatch:
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 env:
   # Path to the solution file relative to the root of the project
   SOLUTION_FILE_PATH: .
 
   # Configuration type to build
-  BUILD_CONFIGURATION: CI_CD
+  BUILD_CONFIGURATION: Release
 
   BUILD_OUTPUT: GuacamoleClient/bin/Debug
   RESULTS_PATH: TestResults.xml
@@ -55,6 +60,14 @@ jobs:
               with:
                  dotnet-version: 8.0.x
 
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 22
+
+            - name: Run JavaScript regression tests
+              run: node --test tests/clipboard-forwarding/clipboard-bridge.test.mjs tests/monitor-layout-prototype/monitor-layout.test.mjs
+
             - name: Dir Listing (Win)
               if: startsWith(matrix.os, 'windows')
               run: dir
@@ -63,11 +76,15 @@ jobs:
               run: ls -la
 
             - name: Install dependencies
-              run: dotnet restore
+              run: dotnet restore GuacamoleCommon.Tests/GuacamoleCommon.Tests.csproj
 
-            - name: Build (Win/Linux)
-              if: always() && (!(startsWith(matrix.os, 'macos')))
-              run: dotnet build --configuration=${{env.BUILD_CONFIGURATION}} --no-restore
+            - name: Build WinForms (Windows)
+              if: runner.os == 'Windows'
+              run: dotnet build GuacamoleClient-WinForms/GuacamoleClient-WinForms.csproj --configuration=${{env.BUILD_CONFIGURATION}}
+
+            - name: Build Avalonia (Windows/Linux)
+              if: runner.os != 'macOS'
+              run: dotnet build GuacamoleClient-Avalonia/GuacamoleClient-Avalonia.csproj --configuration=${{env.BUILD_CONFIGURATION}}
 
             #DISABLED dotnet build for Mac due to missing files during build
             #/Users/runner/.dotnet/sdk/10.0.101/Microsoft.Common.CurrentVersion.targets(5381,5): error MSB3030: Could not copy the file "/Users/runner/work/GuacamoleClient/GuacamoleClient/GuacamoleClient-Avalonia/bin/CI_CD/net8.0/libGLESv2.dylib" because it was not found. [/Users/runner/work/GuacamoleClient/GuacamoleClient/GuacamoleClient-Avalonia/GuacamoleClient-Avalonia.csproj]
@@ -91,7 +108,7 @@ jobs:
                 /p:IncludeNativeLibrariesForSelfExtract=false
 
             - name: Run Unit Tests
-              run: dotnet test -v n --results-directory test-results --logger junit --configuration=${{env.BUILD_CONFIGURATION}} --no-restore
+              run: dotnet test GuacamoleCommon.Tests/GuacamoleCommon.Tests.csproj -v n --results-directory test-results --logger junit --configuration=${{env.BUILD_CONFIGURATION}} --no-restore
 
             - name: Unit Test Results (Linux)
               uses: EnricoMi/publish-unit-test-result-action@v2

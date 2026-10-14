@@ -13,3 +13,5 @@ chunking, rejection, cancellation, session changes, and repeated pastes.
 
 These tests complement `GuacamoleCommon.Tests`. Live WebView2/Windows clipboard and
 RDP validation is tracked in `task_progress.md`.
+
+The Build and Test workflow runs this suite on Windows, Linux, and macOS.
