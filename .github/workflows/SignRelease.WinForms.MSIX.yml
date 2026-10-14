@@ -1,0 +1,155 @@
+﻿name: Sign release - WinForms MSIX
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag (leave empty for the latest stable release)
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  sign-msix:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download release MSIX and public certificate
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+        run: |
+          $arguments = @('release', 'view', '--repo', $env:GITHUB_REPOSITORY, '--json', 'tagName,isDraft')
+          if ($env:REQUESTED_TAG) { $arguments += $env:REQUESTED_TAG }
+          $release = & gh @arguments | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the release.' }
+          if ($release.isDraft) { throw 'Select a published release.' }
+          $tag = $release.tagName
+          $version = $tag -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw 'The release tag must contain a four-part numeric version.' }
+          $directory = Join-Path $env:RUNNER_TEMP 'msix-signing'
+          New-Item -ItemType Directory -Path $directory | Out-Null
+          $unsigned = "GuacamoleClient-WinForms-msix-$version.msix"
+          $signed = "GuacamoleClient-WinForms-msix-$version-signed.msix"
+          $certificate = 'GuacamoleClient-Tetrajoule-ClickOnce.cer'
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $unsigned --pattern $certificate --dir $directory
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the MSIX and certificate.' }
+          Copy-Item -LiteralPath (Join-Path $directory $unsigned) -Destination (Join-Path $directory $signed)
+          "SIGNING_DIRECTORY=$directory" >> $env:GITHUB_ENV
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "UNSIGNED_FILE=$unsigned" >> $env:GITHUB_ENV
+          "SIGNED_FILE=$signed" >> $env:GITHUB_ENV
+          "CERTIFICATE_FILE=$certificate" >> $env:GITHUB_ENV
+
+      - name: Sign and verify package
+        shell: pwsh
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.CLICKONCE_SIGNING_PFX_BASE64 }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.CLICKONCE_SIGNING_PFX_PASSWORD }}
+        run: |
+          if (-not $env:SIGNING_PFX_BASE64 -or -not $env:SIGNING_PFX_PASSWORD) { throw 'Missing signing credentials.' }
+          $directory = $env:SIGNING_DIRECTORY
+          $package = Join-Path $directory $env:SIGNED_FILE
+          $public = [Security.Cryptography.X509Certificates.X509Certificate2]::new((Join-Path $directory $env:CERTIFICATE_FILE))
+          $pfx = Join-Path $directory 'signing.pfx'
+          $private = $null
+          $rootStore = [Security.Cryptography.X509Certificates.X509Store]::new('Root', 'CurrentUser')
+          $rootStore.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+          $addedTrust = $false
+          try {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
+            $private = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+              $pfx, $env:SIGNING_PFX_PASSWORD,
+              [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+            if (-not $private.HasPrivateKey -or $private.Thumbprint -ne $public.Thumbprint) {
+              throw 'The private key does not match the public certificate attached to the release.'
+            }
+            if ($private.NotBefore -gt [datetime]::Now -or $private.NotAfter -le [datetime]::Now) {
+              throw 'The signing certificate is not currently valid.'
+            }
+            $archive = [IO.Compression.ZipFile]::OpenRead($package)
+            try {
+              $reader = [IO.StreamReader]::new($archive.GetEntry('AppxManifest.xml').Open())
+              try { [xml]$manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
+              if ($manifest.Package.Identity.Publisher -cne $private.Subject) { throw 'MSIX publisher does not match the signing certificate.' }
+            }
+            finally { $archive.Dispose() }
+
+            $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+            $tools = Get-ChildItem -LiteralPath $sdkRoot -Directory |
+              Where-Object Name -Match '^\d+\.\d+\.\d+\.\d+$' |
+              Sort-Object { [version]$_.Name } -Descending |
+              ForEach-Object { Join-Path $_.FullName 'x64\signtool.exe' } |
+              Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
+            $signTool = @($tools)[0]
+            if (-not $signTool) { throw 'Windows SDK SignTool was not found.' }
+            & $signTool sign /fd SHA256 /f $pfx /p $env:SIGNING_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $package
+            if ($LASTEXITCODE -ne 0) { throw 'MSIX signing or timestamping failed.' }
+
+            # Trust only for verification in this disposable runner, then remove it.
+            if ($rootStore.Certificates.Find('FindByThumbprint', $public.Thumbprint, $false).Count -eq 0) {
+              $rootStore.Add($public)
+              $addedTrust = $true
+            }
+            & $signTool verify /pa /all /v $package
+            if ($LASTEXITCODE -ne 0) { throw 'SignTool signature verification failed.' }
+            $signature = Get-AuthenticodeSignature -LiteralPath $package
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $public.Thumbprint) {
+              throw 'The package signature is invalid or has a different signer.'
+            }
+            if ($null -eq $signature.TimeStamperCertificate) { throw 'The signature does not include a verified timestamp.' }
+
+            $updatesUrl = "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/app-updates.json"
+            ./tests/packaging/Test-WinFormsMsix.ps1 -PackagePath $package -Version $env:VERSION -UpdatesUrl $updatesUrl
+            $original = [IO.Compression.ZipFile]::OpenRead((Join-Path $directory $env:UNSIGNED_FILE))
+            $signed = [IO.Compression.ZipFile]::OpenRead($package)
+            try {
+              foreach ($entry in $original.Entries) {
+                if ($entry.FullName -eq '[Content_Types].xml' -or $entry.FullName.EndsWith('/')) { continue }
+                $other = $signed.GetEntry($entry.FullName)
+                if ($null -eq $other) { throw "Signed package is missing $($entry.FullName)." }
+                $before = $entry.Open()
+                $after = $other.Open()
+                try {
+                  $beforeHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($before))
+                  $afterHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($after))
+                  if ($beforeHash -ne $afterHash) { throw "Signing changed the original payload: $($entry.FullName)." }
+                }
+                finally { $before.Dispose(); $after.Dispose() }
+              }
+            }
+            finally { $original.Dispose(); $signed.Dispose() }
+            $hash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash
+            "Signer: $($public.Subject)" >> $env:GITHUB_STEP_SUMMARY
+            "Certificate thumbprint: $($public.Thumbprint)" >> $env:GITHUB_STEP_SUMMARY
+            "Signed and timestamped asset: $env:SIGNED_FILE" >> $env:GITHUB_STEP_SUMMARY
+            "SHA-256: $hash" >> $env:GITHUB_STEP_SUMMARY
+          }
+          finally {
+            if ($addedTrust) { $rootStore.Remove($public) }
+            $rootStore.Dispose()
+            if ($private) { $private.Dispose() }
+            $public.Dispose()
+            if (Test-Path -LiteralPath $pfx) { Remove-Item -LiteralPath $pfx -Force }
+          }
+
+      - name: Upload signed package to the existing release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload $env:RELEASE_TAG (Join-Path $env:SIGNING_DIRECTORY $env:SIGNED_FILE) --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload the signed MSIX.' }
+
+      - name: Remove temporary signing files
+        if: always()
+        shell: pwsh
+        run: |
+          $directory = Join-Path $env:RUNNER_TEMP 'msix-signing'
+          if (Test-Path -LiteralPath $directory) { Remove-Item -LiteralPath $directory -Recurse -Force }
