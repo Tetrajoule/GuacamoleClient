@@ -53,7 +53,9 @@ Successful bidirectional clipboard transfer demonstrates that this session permi
 
 ## Remaining follow-up
 
-Release preparation: the clipboard fix is committed for stable fork release `2026.10.14.1`. Release notes are in `docs/release-notes/2026.10.14.1.md`; the consolidated clipboard, packaging, signing, and existing source follow-ups are in `docs/RELEASE-TODOS.md`. The initial 2026.10.14.0 release exposed an inherited MSIX payload/version defect during artifact inspection. Its invalid MSIX asset was withdrawn. The corrected packaging uses the published application and includes a durable payload/manifest/update-metadata verification gate.
+Release outcome: stable fork release [2026.10.14.1](https://github.com/Tetrajoule/GuacamoleClient/releases/tag/2026.10.14.1) is published at commit `b238f88`. CI passed on Windows, Linux, and macOS; all six release workflows passed. All 14 release assets are nonempty. Remote artifact checks verified the MSIX executable/runtime, package version and update metadata, and SHA-256 hashes for the MSIX and WinForms framework-dependent packages. The download site, Stable/Dev update-feed versions, and all four signed ClickOnce deployment/application-manifest URLs were verified. Downloads: https://tetrajoule.github.io/GuacamoleClient/.
+
+Release notes are in `docs/release-notes/2026.10.14.1.md`; the consolidated clipboard, packaging, signing, and existing source follow-ups are in `docs/RELEASE-TODOS.md`. The initial 2026.10.14.0 release exposed an inherited MSIX payload/version defect during artifact inspection. Its invalid MSIX asset was withdrawn. The corrected packaging uses the published application and includes a durable payload/manifest/update-metadata verification gate.
 
 1. Exercise switching between multiple simultaneously connected sessions in the live WinForms UI. Automated tests already verify that a changed/replaced/disconnected client cannot receive a pending paste.
 2. Check sustained key-repeat and Ctrl+Shift+V in remote applications that support those gestures. Rapid separate Ctrl+V gestures passed live; the modified key ordering is covered by automated tests.

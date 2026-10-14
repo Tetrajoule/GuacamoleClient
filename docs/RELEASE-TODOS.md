@@ -16,6 +16,7 @@ Completed live checks and protocol findings are recorded in [task_progress.md](.
 - [ ] Verify signed MSIX installation and upgrades. The executable/runtime payload, package manifest, release version, and update metadata are validated by `tests/packaging/Test-WinFormsMsix.ps1` before upload.
 - [ ] Renew the ClickOnce signing certificate before 2029-10-14, preserving a documented migration path for existing installations.
 - [ ] Migrate the deprecated Windows unit-test-results composite action to its supported replacement. Current CI reporting succeeds but emits a deprecation annotation.
+- [ ] Upgrade the release-upload action's Node runtime. `softprops/action-gh-release@v2` succeeds with GitHub's forced Node 24 runtime but emits a Node 20 deprecation annotation.
 - [ ] Before each stable release, review obsolete Dev Preview releases and obtain explicit confirmation before deleting releases or assets. No older releases existed in this fork when preparing 2026.10.14.0.
 
 ## Existing source TODO
