@@ -14,6 +14,7 @@ permissions:
 jobs:
   sign-msix:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -48,6 +49,7 @@ jobs:
           "CERTIFICATE_FILE=$certificate" >> $env:GITHUB_ENV
 
       - name: Sign and verify package
+        timeout-minutes: 5
         shell: pwsh
         env:
           SIGNING_PFX_BASE64: ${{ secrets.CLICKONCE_SIGNING_PFX_BASE64 }}
@@ -59,7 +61,7 @@ jobs:
           $public = [Security.Cryptography.X509Certificates.X509Certificate2]::new((Join-Path $directory $env:CERTIFICATE_FILE))
           $pfx = Join-Path $directory 'signing.pfx'
           $private = $null
-          $rootStore = [Security.Cryptography.X509Certificates.X509Store]::new('Root', 'CurrentUser')
+          $rootStore = [Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
           $rootStore.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
           $addedTrust = $false
           try {
@@ -89,16 +91,21 @@ jobs:
               Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
             $signTool = @($tools)[0]
             if (-not $signTool) { throw 'Windows SDK SignTool was not found.' }
+            Write-Host 'Signing and timestamping the release package.'
             & $signTool sign /fd SHA256 /f $pfx /p $env:SIGNING_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $package
             if ($LASTEXITCODE -ne 0) { throw 'MSIX signing or timestamping failed.' }
 
             # Trust only for verification in this disposable runner, then remove it.
+            # LocalMachine avoids the interactive CurrentUser Root-store consent dialog.
+            Write-Host 'Preparing temporary certificate trust on the disposable runner.'
             if ($rootStore.Certificates.Find('FindByThumbprint', $public.Thumbprint, $false).Count -eq 0) {
               $rootStore.Add($public)
               $addedTrust = $true
             }
+            Write-Host 'Verifying the timestamped package signature.'
             & $signTool verify /pa /all /v $package
             if ($LASTEXITCODE -ne 0) { throw 'SignTool signature verification failed.' }
+            Write-Host 'Checking the signer against the attached public certificate.'
             $signature = Get-AuthenticodeSignature -LiteralPath $package
             if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $public.Thumbprint) {
               throw 'The package signature is invalid or has a different signer.'
@@ -107,6 +114,7 @@ jobs:
 
             $updatesUrl = "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/app-updates.json"
             ./tests/packaging/Test-WinFormsMsix.ps1 -PackagePath $package -Version $env:VERSION -UpdatesUrl $updatesUrl
+            Write-Host 'Comparing the signed package payload with the original release artifact.'
             $original = [IO.Compression.ZipFile]::OpenRead((Join-Path $directory $env:UNSIGNED_FILE))
             $signed = [IO.Compression.ZipFile]::OpenRead($package)
             try {
