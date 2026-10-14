@@ -1,6 +1,6 @@
 ﻿# Clipboard forwarding investigation status
 
-Status: The WinForms local-to-remote text clipboard fix is implemented and verified in the live AiSEL RDP session (2026-10-14). Live multi-session switching remains a follow-up check.
+Status: The WinForms local-to-remote text clipboard fix is implemented and verified in the live AiSEL RDP session (2026-10-14). Stable fork release 2026.10.14.1 is published, including the verified signed MSIX. A focused upstream pull request for issue #56 is open and awaiting maintainer review.
 
 ## Root causes confirmed
 
@@ -51,9 +51,19 @@ Successful bidirectional clipboard transfer demonstrates that this session permi
 - The JavaScript regression tests execute the production embedded scripts with Guacamole stream/tunnel doubles. Coverage includes no-ACK stream completion, numeric key states, UTF-8 fallback chunking, Unicode, rejection, send/key failures, cancellation, disconnect/reconnect guards, session switching, Ctrl+Shift+V key ordering, and repeated paste.
 - The earlier solution build limitation remains: the MSIX project requires unavailable .NET DesktopBridge targets (`Microsoft.DesktopBridge.props`). The affected WinForms app builds independently.
 
+## Upstream contribution status
+
+- Issue: [#56 — Clipboard from local client to remote session does not work in Guacamole Client for Windows](https://github.com/jochenwezel/GuacamoleClient/issues/56)
+- Pull request: [#67 — Fix WinForms local-to-remote clipboard paste](https://github.com/jochenwezel/GuacamoleClient/pull/67), from `Tetrajoule:fix/issue-56-native-clipboard-forwarding` to upstream `main`.
+- The PR contains only the WinForms clipboard bridge and related regression tests; fork-specific release, Pages, and signing changes are excluded.
+- The issue has a comment linking the PR and summarizing the fix: [comment](https://github.com/jochenwezel/GuacamoleClient/issues/56#issuecomment-6172352766).
+- AI assistance disclosure is included in the PR description and issue comment: the patch was developed with AI assistance and reviewed/tested in a live RDP session.
+- PR state: open. GitHub reported no PR checks at the time this status was updated; maintainer review and any requested revisions remain pending.
+- Potential next steps: monitor upstream CI/review and address maintainer feedback; verify signed-MSIX install/upgrade on a separate Windows machine; complete live multi-session, sustained-key-repeat, and Ctrl+Shift+V checks. Details are tracked in `docs/RELEASE-TODOS.md`.
+
 ## Remaining follow-up
 
-Release outcome: stable fork release [2026.10.14.1](https://github.com/Tetrajoule/GuacamoleClient/releases/tag/2026.10.14.1) is published at commit `b238f88`. CI passed on Windows, Linux, and macOS; all six release workflows passed. All 14 release assets are nonempty. Remote artifact checks verified the MSIX executable/runtime, package version and update metadata, and SHA-256 hashes for the MSIX and WinForms framework-dependent packages. The download site, Stable/Dev update-feed versions, and all four signed ClickOnce deployment/application-manifest URLs were verified. Downloads: https://tetrajoule.github.io/GuacamoleClient/.
+Release outcome: stable fork release [2026.10.14.1](https://github.com/Tetrajoule/GuacamoleClient/releases/tag/2026.10.14.1) is published at commit `b238f88`. CI passed on Windows, Linux, and macOS; all six release workflows passed. All 14 original release assets were nonempty. A verified signed MSIX was subsequently added, bringing the release to 15 assets. Remote artifact checks verified the MSIX executable/runtime, package version and update metadata, and SHA-256 hashes for the signed MSIX and WinForms framework-dependent packages. The download site, Stable/Dev update-feed versions, and all four signed ClickOnce deployment/application-manifest URLs were verified. Downloads: https://tetrajoule.github.io/GuacamoleClient/.
 
 Release notes are in `docs/release-notes/2026.10.14.1.md`; the consolidated clipboard, packaging, signing, and existing source follow-ups are in `docs/RELEASE-TODOS.md`. The initial 2026.10.14.0 release exposed an inherited MSIX payload/version defect during artifact inspection. Its invalid MSIX asset was withdrawn. The corrected packaging uses the published application and includes a durable payload/manifest/update-metadata verification gate.
 
