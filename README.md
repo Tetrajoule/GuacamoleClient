@@ -9,7 +9,7 @@
 
 This fork is maintained at [Tetrajoule/GuacamoleClient](https://github.com/Tetrajoule/GuacamoleClient).
 The upstream project is [jochenwezel/GuacamoleClient](https://github.com/jochenwezel/GuacamoleClient).
-See [release notes](docs/release-notes/2026.10.14.0.md) for the current release and [release follow-ups](docs/RELEASE-TODOS.md) for outstanding work.
+See [release notes](docs/release-notes/2026.10.14.1.md) for the current release and [release follow-ups](docs/RELEASE-TODOS.md) for outstanding work.
 
 ## What is GuacamoleClient?
 
