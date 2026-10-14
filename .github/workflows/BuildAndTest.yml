@@ -43,9 +43,9 @@ jobs:
         strategy:
           fail-fast: false
           matrix:
-            os: [windows-latest, ubuntu-latest, macos-latest]
+            os: [windows-latest, ubuntu-latest, macos-15-intel]
             include: 
-              - os: macos-latest
+              - os: macos-15-intel
                 runNetExe: mono
 
         # the build-and-test job might be skipped, we don't need to run this job then
@@ -97,7 +97,7 @@ jobs:
             #INSTEAD: dotnet public works on Mac
             # macOS: RID-Publish für die Avalonia-App (zieht CEF-Natives)
             - name: Publish Avalonia (macOS, osx-arm64)
-              if: matrix.os == 'macos-latest'
+              if: runner.os == 'macOS'
               run: >
                 dotnet publish
                 GuacamoleClient-Avalonia/GuacamoleClient-Avalonia.csproj
