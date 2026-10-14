@@ -347,27 +347,32 @@ namespace GuacamoleClient.WinForms
                         break;
 
                     case "stream-created":
-                        if (!root.TryGetProperty("expectedAcknowledgements", out JsonElement expectedValue)
-                            || !expectedValue.TryGetInt32(out int expectedAcknowledgements)
-                            || expectedAcknowledgements <= 0
-                            || expectedAcknowledgements > 1_000_000)
-                        {
-                            CompleteClipboardTransfer(pending, "invalid-stream-ack-count");
-                            break;
-                        }
-
-                        pending.AcknowledgementTracker = new ClipboardStreamAcknowledgementTracker(expectedAcknowledgements);
                         string writerMode = root.TryGetProperty("writerMode", out JsonElement writerModeValue)
                             && writerModeValue.ValueKind == JsonValueKind.String
                             ? writerModeValue.GetString()!
                             : "unknown";
                         int streamIndex = ReadInteger(root, "streamIndex");
-                        Trace.TraceInformation("Guacamole text/plain clipboard stream created (writer={0}, stream={1}, {2} data acknowledgements expected).", writerMode, streamIndex, expectedAcknowledgements);
+                        Trace.TraceInformation("Guacamole text/plain clipboard stream created (writer={0}, stream={1}).", writerMode, streamIndex);
                         pending.StreamCreated.TrySetResult(true);
                         break;
 
                     case "stream-ack":
-                        HandleClipboardStreamAcknowledgement(root, pending, requestId);
+                        if (!root.TryGetProperty("statusCode", out JsonElement statusValue)
+                            || !statusValue.TryGetInt32(out int statusCode)
+                            || statusCode >= 0x0100)
+                        {
+                            Trace.TraceWarning("Guacamole clipboard stream was rejected.");
+                            CompleteClipboardTransfer(pending, "stream-acknowledgement-error");
+                        }
+                        break;
+
+                    case "stream-sent":
+                        if (pending.FinalizationStarted || pending.TransferCompleted.Task.IsCompleted)
+                            break;
+
+                        pending.FinalizationStarted = true;
+                        Trace.TraceInformation("Guacamole clipboard text and end instruction queued; dispatching remote paste.");
+                        _ = FinalizeClipboardTransferAsync(requestId, pending);
                         break;
 
                     case "blob-sent":
@@ -375,12 +380,12 @@ namespace GuacamoleClient.WinForms
                         break;
 
                     case "completed":
-                        Trace.TraceInformation("Guacamole clipboard stream completed and remote Ctrl+V was dispatched.");
+                        Trace.TraceInformation("Guacamole clipboard stream and remote Ctrl+V were queued.");
                         pending.TransferCompleted.TrySetResult(null);
                         break;
 
                     case "remote-paste-dispatched":
-                        Trace.TraceInformation("Remote Ctrl+V dispatched after clipboard stream acknowledgement.");
+                        Trace.TraceInformation("Remote Ctrl+V dispatched after clipboard stream end.");
                         break;
 
                     case "failed":
@@ -396,36 +401,13 @@ namespace GuacamoleClient.WinForms
             }
         }
 
-        private void HandleClipboardStreamAcknowledgement(JsonElement message, PendingClipboardPaste pending, string requestId)
-        {
-            if (pending.AcknowledgementTracker == null
-                || !message.TryGetProperty("statusCode", out JsonElement statusValue)
-                || !statusValue.TryGetInt32(out int statusCode))
-            {
-                CompleteClipboardTransfer(pending, "invalid-stream-ack");
-                return;
-            }
-
-            ClipboardStreamAcknowledgementProgress progress = pending.AcknowledgementTracker.Acknowledge(statusCode);
-            if (statusCode != 0)
-            {
-                Trace.TraceWarning("Guacamole clipboard stream acknowledgement failed (status {0}).", statusCode);
-                CompleteClipboardTransfer(pending, "stream-acknowledgement-error");
-                return;
-            }
-
-            if (progress != ClipboardStreamAcknowledgementProgress.Completed || pending.FinalizationStarted)
-                return;
-
-            pending.FinalizationStarted = true;
-            Trace.TraceInformation("All Guacamole clipboard data blobs were acknowledged.");
-            _ = FinalizeClipboardTransferAsync(requestId, pending);
-        }
-
         private async Task FinalizeClipboardTransferAsync(string requestId, PendingClipboardPaste pending)
         {
             try
             {
+                if (!IsClipboardRequestPending(requestId, pending) || pending.TransferCompleted.Task.IsCompleted)
+                    return;
+
                 if (_webview2_core == null || !IsTrustedClipboardBridgeSource(_webview2_core.Source))
                 {
                     CompleteClipboardTransfer(pending, "untrusted-page");
@@ -605,7 +587,7 @@ namespace GuacamoleClient.WinForms
                         }, 5000);
 
                         // Own this single paste. Suppress Guacamole's keyboard and paste handlers;
-                        // the native bridge sends clipboard data and remote Ctrl+V after stream ACKs.
+                        // the native bridge ends the clipboard stream before sending remote Ctrl+V.
                         event.preventDefault();
                         event.stopPropagation();
                         event.stopImmediatePropagation();
@@ -657,6 +639,7 @@ namespace GuacamoleClient.WinForms
                     {{ClipboardTargetSelectionJavaScript}}
 
                     let stream = null;
+                    let transfer = null;
                     try {
                         const requests = window.__guacamoleClientNativeClipboardRequests || Object.create(null);
                         const request = requests[requestId];
@@ -680,8 +663,7 @@ namespace GuacamoleClient.WinForms
                         const encodedText = new TextEncoder().encode(text);
                         const blobLength = Number(ArrayBufferWriter && ArrayBufferWriter.DEFAULT_BLOB_LENGTH) || 6048;
                         const byteLength = encodedText.byteLength;
-                        const expectedAcknowledgements = Math.ceil(byteLength / blobLength);
-                        if (!expectedAcknowledgements) {
+                        if (!byteLength) {
                             post('failed', { reason: 'stream-send-failed' });
                             return;
                         }
@@ -710,14 +692,16 @@ namespace GuacamoleClient.WinForms
 
                         const transfers = window.__guacamoleClientNativeClipboardTransfers ||
                             (window.__guacamoleClientNativeClipboardTransfers = Object.create(null));
-                        transfers[requestId] = { selected, stream, writer, shiftPressed };
-                        ackSource.onack = (status) => post('stream-ack', {
-                            statusCode: Number(status && status.code)
-                        });
+                        transfer = transfers[requestId] = { selected, stream, writer, shiftPressed, ended: false, rejected: false };
+                        ackSource.onack = (status) => {
+                            const statusCode = Number(status && status.code);
+                            if (!Number.isFinite(statusCode) || statusCode >= 0x0100)
+                                transfer.rejected = true;
+                            post('stream-ack', { statusCode });
+                        };
 
                         // Report stream ownership before sending data so no second paste handler runs.
                         post('stream-created', {
-                            expectedAcknowledgements,
                             writerMode: StringWriter ? 'StringWriter' : 'UTF8-sendBlob',
                             streamIndex: stream.index
                         });
@@ -728,10 +712,26 @@ namespace GuacamoleClient.WinForms
                         };
                         writer.sendText(text);
                         stream.sendBlob = sendBlob;
+
+                        // Match ManagedClient.setClipboard(): RDP clipboard blobs have no success ACKs.
+                        // The server only advertises the new clipboard contents after receiving end.
+                        writer.sendEnd();
+                        transfer.ended = true;
+                        if (transfer.rejected) {
+                            post('failed', { reason: 'stream-acknowledgement-error' });
+                            return;
+                        }
+                        post('stream-sent');
                     }
                     catch (_) {
-                        if (stream && typeof stream.sendEnd === 'function') {
-                            try { stream.sendEnd(); }
+                        if (transfer)
+                            transfer.rejected = true;
+                        if (stream && (!transfer || !transfer.ended) && typeof stream.sendEnd === 'function') {
+                            try {
+                                stream.sendEnd();
+                                if (transfer)
+                                    transfer.ended = true;
+                            }
                             catch (_) { }
                         }
                         post('failed', { reason: stream ? 'stream-send-failed' : 'stream-creation-failed' });
@@ -762,15 +762,18 @@ namespace GuacamoleClient.WinForms
                     try {
                         const selected = findActiveTarget();
                         if (!selected || selected.client !== transfer.selected.client) {
-                            transfer.writer.sendEnd();
                             delete transfers[requestId];
                             delete requests[requestId];
                             post('failed', { reason: 'session-changed' });
                             return;
                         }
 
-                        // All data blobs are acknowledged. End the stream before queuing remote Ctrl+V.
-                        transfer.writer.sendEnd();
+                        if (!transfer.ended || transfer.rejected) {
+                            post('failed', { reason: 'stream-send-failed' });
+                            return;
+                        }
+
+                        // Guacamole serializes key states directly. guacd requires numeric 1/0.
                         const client = transfer.selected.client;
                         const control = 0xFFE3;
                         const shift = 0xFFE1;
@@ -779,22 +782,22 @@ namespace GuacamoleClient.WinForms
                         let shiftDown = false;
                         let pasteKeyDown = false;
                         try {
-                            client.sendKeyEvent(true, control);
+                            client.sendKeyEvent(1, control);
                             controlDown = true;
                             if (transfer.shiftPressed) {
-                                client.sendKeyEvent(true, shift);
+                                client.sendKeyEvent(1, shift);
                                 shiftDown = true;
                             }
-                            client.sendKeyEvent(true, pasteKey);
+                            client.sendKeyEvent(1, pasteKey);
                             pasteKeyDown = true;
                         }
                         finally {
                             if (pasteKeyDown)
-                                client.sendKeyEvent(false, pasteKey);
+                                client.sendKeyEvent(0, pasteKey);
                             if (shiftDown)
-                                client.sendKeyEvent(false, shift);
+                                client.sendKeyEvent(0, shift);
                             if (controlDown)
-                                client.sendKeyEvent(false, control);
+                                client.sendKeyEvent(0, control);
                         }
 
                         post('remote-paste-dispatched');
@@ -820,7 +823,7 @@ namespace GuacamoleClient.WinForms
                     const requests = window.__guacamoleClientNativeClipboardRequests || Object.create(null);
                     const transfers = window.__guacamoleClientNativeClipboardTransfers || Object.create(null);
                     const transfer = transfers[requestId];
-                    if (transfer && transfer.writer && typeof transfer.writer.sendEnd === 'function') {
+                    if (transfer && !transfer.ended && transfer.writer && typeof transfer.writer.sendEnd === 'function') {
                         try { transfer.writer.sendEnd(); }
                         catch (_) { }
                     }
@@ -931,7 +934,6 @@ namespace GuacamoleClient.WinForms
         {
             public TaskCompletionSource<bool> StreamCreated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
             public TaskCompletionSource<string?> TransferCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            public ClipboardStreamAcknowledgementTracker? AcknowledgementTracker { get; set; }
             public bool FinalizationStarted { get; set; }
         }
     }
